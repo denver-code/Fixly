@@ -5,7 +5,7 @@ from beanie import init_beanie
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from api.models import User
+from api.models import Product, User
 from app.core.database import db
 from app.core.config import config
 from api.api_router import api_router
@@ -15,7 +15,8 @@ async def lifespan(app: FastAPI):
     await init_beanie(
         database=db,
         document_models=[
-            User
+            User,
+            Product
         ],
     )
 
