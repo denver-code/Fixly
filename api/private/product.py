@@ -20,6 +20,10 @@ async def list_products(request: Request):
         Product.owner_id == user.id,
     ).to_list()
 
+    products = [
+        {**product.model_dump(), "id": str(product.id)} for product in products
+    ]
+
     return products
 
 
