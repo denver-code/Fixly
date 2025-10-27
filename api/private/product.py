@@ -3,10 +3,12 @@ import shutil
 from typing import List, Optional
 import uuid
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from api.models import SalesMeta, User, Product
 from app.core.jwt import FastJWT
 from beanie import PydanticObjectId
+from app.core.config import config
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -27,7 +29,17 @@ async def list_products(request: Request):
     ).to_list()
 
     products = [
-        {**product.model_dump(), "id": str(product.id)} for product in products
+        {
+            **product.model_dump(),
+            "id": str(product.id),
+            # Convert image path to URL 
+            "images": [
+                {
+                    "url": f"{config.BASE_URL}api/private/products/{product.id}/images/{Path(img.url).name}",
+                    "is_main": img.is_main
+                } for img in product.images
+            ] if product.images else []
+        } for product in products
     ]
 
     return products
@@ -189,3 +201,47 @@ async def upload_product_images(
     await product.save()
 
     return {"main": str(main_path), "others": other_paths}
+
+# get photo
+@product_router.get("/{product_id}/images/{image_name}")
+async def get_product_image(request: Request, product_id: PydanticObjectId, image_name: str):
+    token = await FastJWT().decode(request.headers["Authorization"])
+    user = await User.get(token.id)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+
+    product = await Product.get(product_id)
+    if not product or product.owner_id != user.id:
+        raise HTTPException(404, "Product not found")
+
+    image_path = UPLOAD_DIR / str(product_id) / image_name
+    print(image_path)
+    if not image_path.exists():
+        raise HTTPException(404, "Image not found")
+
+    return FileResponse(image_path)
+
+# delete photos
+@product_router.delete("/{product_id}/images/{image_name}")
+async def delete_product_image(request: Request, product_id: PydanticObjectId, image_name: str):
+    token = await FastJWT().decode(request.headers["Authorization"])
+    user = await User.get(token.id)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+
+    product = await Product.get(product_id)
+    if not product or product.owner_id != user.id:
+        raise HTTPException(404, "Product not found")
+
+    image_path = UPLOAD_DIR / product_id / image_name
+    if not image_path.exists():
+        raise HTTPException(404, "Image not found")
+
+    # Remove image from product images list
+    product.images = [img for img in product.images if Path(img.url).name != image_name]
+    await product.save()
+
+    # Delete the file
+    image_path.unlink()
+
+    return {"message": "Image deleted successfully"}

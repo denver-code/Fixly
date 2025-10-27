@@ -13,7 +13,8 @@ class Config(BaseSettings):
 
     JWT_SECRET_KEY: str
     PASSWORDS_SALT_SECRET_KEY: str
-
+    BASE_URL: AnyHttpUrl
+    
     class Config:
         case_sensitive = True
         env_file = ".env"
