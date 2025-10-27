@@ -1,9 +1,15 @@
-from fastapi import APIRouter, HTTPException, Request
+from pathlib import Path
+import shutil
+from typing import List, Optional
+import uuid
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from api.models import SalesMeta, User, Product
 from app.core.jwt import FastJWT
 from beanie import PydanticObjectId
 
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 product_router = APIRouter(prefix="/products")
 
@@ -142,3 +148,44 @@ async def update_product(request: Request, product_id: PydanticObjectId, payload
     
     await product.save()
     return product
+
+@product_router.post("/{product_id}/images")
+async def upload_product_images(
+    request: Request,
+    product_id: str,
+    main_image: UploadFile = File(...),
+    other_images: Optional[List[UploadFile]] = File(None)
+):
+    token = await FastJWT().decode(request.headers["Authorization"])
+    user = await User.get(token.id)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    product = await Product.get(product_id)
+    if not product or product.owner_id != user.id:
+        raise HTTPException(404, "Product not found")
+
+    product_dir = UPLOAD_DIR / product_id
+    product_dir.mkdir(exist_ok=True)
+
+    main_ext = main_image.filename.split(".")[-1]
+    main_filename = f"main_{uuid.uuid4().hex}.{main_ext}"
+    main_path = product_dir / main_filename
+    with open(main_path, "wb") as f:
+        shutil.copyfileobj(main_image.file, f)
+
+    other_paths = []
+    if other_images:
+        for img in other_images:
+            ext = img.filename.split(".")[-1]
+            safe_name = f"{uuid.uuid4().hex}.{ext}"
+            img_path = product_dir / safe_name
+            with open(img_path, "wb") as f:
+                shutil.copyfileobj(img.file, f)
+            other_paths.append(str(img_path))
+
+    product.images = [{"url": str(main_path), "is_main": True}] + [
+        {"url": p, "is_main": False} for p in other_paths
+    ]
+    await product.save()
+
+    return {"main": str(main_path), "others": other_paths}

@@ -12,6 +12,10 @@ class SalesMeta(BaseModel):
     vinted_link: Optional[str] = None
     other_link: Optional[str] = None
 
+class ProductImage(BaseModel):
+    url: str
+    is_main: bool = False
+
 
 class Product(Document):
     owner_id: PydanticObjectId
@@ -22,3 +26,5 @@ class Product(Document):
     sold_price: Optional[float] = None
     sales_meta: Optional[SalesMeta] = None
     note: Optional[str] = None
+
+    images: list[ProductImage] = []

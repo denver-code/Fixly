@@ -9,6 +9,10 @@ from api.models import Product, User
 from app.core.database import db
 from app.core.config import config
 from api.api_router import api_router
+from pathlib import Path
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
