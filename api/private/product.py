@@ -81,28 +81,6 @@ async def delete_product(request: Request, product_id: PydanticObjectId):
     await product.delete()
     return {"message": "Product deleted successfully"}
 
-
-
-class ProductSellRequest(BaseModel):
-    sold_price: float
-
-@product_router.post("/{product_id}/sell")
-async def sell_product(request: Request, product_id: PydanticObjectId, payload: ProductSellRequest):
-    token = await FastJWT().decode(request.headers["Authorization"])
-    user = await User.get(token.id)
-    if not user:
-        raise HTTPException(401, "Unauthorized")
-
-    product = await Product.get(product_id)
-    if not product or product.owner_id != user.id:
-        raise HTTPException(404, "Product not found")
-
-    product.sold_price = payload.sold_price
-    
-    await product.save()
-    return product
-
-
 class ProductSalesMetaRequest(BaseModel):
     ebay_link: str | None = None
     vinted_link: str | None = None
@@ -135,6 +113,7 @@ class ProductUpdateRequest(BaseModel):
     description: str | None = None
     bought_price: float | None = None
     target_price: float | None = None
+    sold_price: float | None = None
     note: str | None = None
 
 @product_router.put("/{product_id}")
@@ -156,6 +135,8 @@ async def update_product(request: Request, product_id: PydanticObjectId, payload
         product.bought_price = payload.bought_price
     if payload.target_price is not None:
         product.target_price = payload.target_price
+    if payload.sold_price is not None:
+        product.sold_price = payload.sold_price
     if payload.note is not None:
         product.note = payload.note
     
